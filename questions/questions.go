@@ -10,7 +10,19 @@ import (
 
 var Must = e.MustNow
 
-func AskQuestions(prompt Prompt, prompts ...Prompt) map[PromptKey]string {
+type QuestionsHandler interface {
+	AskQuestions(prompt Prompt, prompts ...Prompt) map[PromptKey]string
+	AskQuestionsFromFile(file string) map[PromptKey]string
+}
+
+type questionsHandler struct {
+}
+
+func NewQuestionsHandler() QuestionsHandler {
+	return &questionsHandler{}
+}
+
+func (h *questionsHandler) AskQuestions(prompt Prompt, prompts ...Prompt) map[PromptKey]string {
 	answers := make(map[PromptKey]string)
 	key, value := prompt.Prompt()
 	answers[key] = value
@@ -21,7 +33,7 @@ func AskQuestions(prompt Prompt, prompts ...Prompt) map[PromptKey]string {
 	return answers
 }
 
-func AskQuestionsFromFile(file string) map[PromptKey]string {
+func (h *questionsHandler) AskQuestionsFromFile(file string) map[PromptKey]string {
 	questions := make(map[PromptKey]string)
 	b, err := os.ReadFile(file)
 	if err != nil {

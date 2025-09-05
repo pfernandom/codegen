@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"html/template"
 	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,15 +17,17 @@ import (
 	"github.com/pfernandom/codegen/questions"
 )
 
+var LOG = slog.New(slog.NewTextHandler(os.Stderr, nil))
+
 type dataGen struct {
 	Data        map[string]string
 	OutDir      string
 	TemplateDir string
 }
 
-func NewDataGen(flags CmdFlags) *dataGen {
+func NewDataGen(flags CmdFlags, questionsHandler questions.QuestionsHandler) *dataGen {
 	data := readJsonFile(flags.DataFile)
-	for key, value := range questions.AskQuestionsFromFile(flags.QuestionsFile) {
+	for key, value := range questionsHandler.AskQuestionsFromFile(flags.QuestionsFile) {
 		data[string(key)] = value
 	}
 	return &dataGen{
@@ -31,6 +35,14 @@ func NewDataGen(flags CmdFlags) *dataGen {
 		OutDir:      flags.OutDir,
 		TemplateDir: flags.TemplateDir,
 	}
+}
+
+func (dg *dataGen) Validate() error {
+
+	if _, err := os.Stat(dg.TemplateDir); os.IsNotExist(err) {
+		return fmt.Errorf("template directory not found: %s", dg.TemplateDir)
+	}
+	return nil
 }
 
 func readJsonFile(file string) map[string]string {
@@ -50,23 +62,8 @@ func (dg *dataGen) Generate() error {
 	return filepath.Walk(dg.TemplateDir, dg.Walk)
 }
 
-func (dg *dataGen) Walk(s string, d fs.FileInfo, err error) error {
-	MustOrMessage(err, "walk error: %w", err)
-	st := MustReturn(template.New(s).Parse(s)).OrFail()
-
-	var buf bytes.Buffer
-	Must(st.Execute(&buf, dg.Data)).OrFail()
-
-	out_file := s
-	if buf.String() != s {
-		out_file = buf.String()
-	}
-
-	if d.IsDir() {
-		return nil
-	}
-	out_file = strings.TrimPrefix(out_file, "templates/")
-	out_file = filepath.Join(dg.OutDir, strings.TrimSuffix(out_file, ".tmpl"))
+func (dg *dataGen) ParseToOut(s string, out_file string, d fs.FileInfo, err error) error {
+	// LOG.Info("ParseToOut", "s", s, "out_file", out_file, "d", d, "err", err)
 	Must(os.MkdirAll(filepath.Dir(out_file), 0755)).OrFail()
 
 	f := MustReturn(os.Create(out_file)).OrFailWith("create file: %w", out_file)
@@ -74,13 +71,35 @@ func (dg *dataGen) Walk(s string, d fs.FileInfo, err error) error {
 	if strings.HasSuffix(s, ".tmpl") {
 		tmpl := MustReturn(template.ParseFiles(s)).OrFailWith("parse template: %w", s)
 		Must(tmpl.Execute(f, dg.Data)).OrFail()
-
-		err = tmpl.Execute(f, dg.Data)
-		Must(err).OrFailWith("execute template: %w", err)
 	} else if !d.IsDir() {
 		inf := MustReturn(os.Open(s)).OrFailWith("open out file: %w", s)
 		defer inf.Close()
 		MustReturn(io.Copy(f, inf)).OrFailWith("copy file: %w", s)
 	}
 	return nil
+}
+func (dg *dataGen) Walk(s string, d fs.FileInfo, err error) error {
+	MustOrMessage(err, "walk error: %w", err)
+	if d.IsDir() {
+		return nil
+	}
+
+	out_file := MustReturn(parseFilenameTemplate(s, dg.Data)).OrFail()
+	out_file = MustReturn(filepath.Rel(dg.TemplateDir, out_file)).OrFail()
+	out_file = filepath.Join(dg.OutDir, strings.TrimSuffix(out_file, ".tmpl"))
+
+	return dg.ParseToOut(s, out_file, d, err)
+}
+
+func parseFilenameTemplate(s string, data map[string]string) (string, error) {
+	st, err := template.New(fmt.Sprintf("filename-%s", s)).Parse(s)
+	if err != nil {
+		return "", err
+	}
+
+	var buf bytes.Buffer
+	if err := st.Execute(&buf, data); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
 }

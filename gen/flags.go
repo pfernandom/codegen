@@ -19,7 +19,7 @@ type CmdFlags struct {
 func ParseFlags() CmdFlags {
 
 	data_file := flag.String("data", "data.json", "a data file")
-	template_dir := flag.String("templates", "templates", "a template directory")
+	template_dir := flag.String("templates", "templates/", "a template directory")
 	out_dir := flag.String("out", "out", "an output directory")
 	questions_file := flag.String("questions", "questions.json", "a questions file")
 	flag.Parse()

@@ -10,13 +10,14 @@ import (
 func main() {
 	questionFile := flag.String("questions", "questions.json", "a questions file")
 	flag.Parse()
+	questionsHandler := questions.NewQuestionsHandler()
 	if *questionFile != "" {
 		fmt.Printf("Asking questions from %s\n", *questionFile)
-		answers := questions.AskQuestionsFromFile(*questionFile)
+		answers := questionsHandler.AskQuestionsFromFile(*questionFile)
 		fmt.Println(answers)
 		return
 	}
-	answers := questions.AskQuestions(
+	answers := questionsHandler.AskQuestions(
 		questions.StringPrompt("name", "What is your name?"),
 		questions.StringPrompt("age", "What is your age?"),
 	)
