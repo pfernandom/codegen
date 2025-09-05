@@ -1,4 +1,4 @@
-package tests
+package main
 
 import (
 	"fmt"
@@ -6,61 +6,66 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"testing"
-
-	"github.com/pfernandom/codegen/gen"
-	"github.com/pfernandom/codegen/questions"
-	"github.com/stretchr/testify/assert"
 
 	"github.com/cheggaaa/pb/v3"
-	goget "github.com/hashicorp/go-getter"
+	"github.com/hashicorp/go-getter"
+	safetemp "github.com/hashicorp/go-safetemp"
+	"github.com/pfernandom/codegen/errors"
+	"github.com/pfernandom/codegen/gen"
+	"github.com/pfernandom/codegen/questions"
 )
 
-func TestCodegen(t *testing.T) {
-	withExampleDir(t, "example", func(t *outputTester, flags gen.CmdFlags) {
-		dg := gen.NewDataGen(flags, &testQuestionsHandler{
-			answers: map[questions.PromptKey]string{
-				"name": "John Doe",
-				"age":  "30",
-			},
-		})
+var Must = errors.MustNow
 
-		assert.NoError(t, dg.Validate())
-		assert.NoError(t, dg.Generate())
-		out_dir_contents, err := os.ReadDir(flags.OutDir)
-		assert.NoError(t, err)
-		fmt.Println(out_dir_contents)
+func main() {
+	// pwd, err := os.Getwd()
+	// Must(err)
+	// Must(err)
+	tmpDir, closer, err := safetemp.Dir("/tmp", "sample*dir")
+	Must(err)
+	defer closer.Close()
 
-		t.assertOutFileExistsAndContains(
-			"index.html",
-			"<title>This is a title</title>",
-		)
-		t.assertOutFileExists(
-			"js/my_app.js",
-		)
-		t.assertOutFileExistsAndContains(
-			"js/index.js",
-			"console.log(\"Hello John Doe, World!\");",
-		)
-	})
-}
+	outDir, closer2, err := safetemp.Dir("/tmp", "sample*dir")
+	Must(err)
+	defer closer2.Close()
 
-func TestCodegenWithExampleFromGithub(t *testing.T) {
+	opts := []getter.ClientOption{}
+	opts = append(opts, getter.WithProgress(NewProgressBar()))
+	fmt.Println("tmpDir", tmpDir)
 
-	pwd, err := os.Getwd()
-	assert.NoError(t, err)
-	opts := []goget.ClientOption{}
-	opts = append(opts, goget.WithProgress(NewProgressBar()))
-
-	client := goget.Client{
-		Src:     "git://github.com/pfernandom/codegen-example",
-		Dst:     "example2",
-		Pwd:     pwd,
-		Mode:    goget.ClientModeAny,
+	client := getter.Client{
+		Src: "git@github.com:pfernandom/codegen-example.git",
+		Dst: tmpDir,
+		// Pwd:     pwd,
+		Mode:    getter.ClientModeDir,
 		Options: opts,
 	}
-	err = client.Get()
-	assert.NoError(t, err)
+	errors.Must(client.Get()).OrFailWith("get error: %w", err)
+	fmt.Println("tmpDir", tmpDir)
+	for _, file := range errors.MustReturn(os.ReadDir(tmpDir)).OrFail() {
+		fmt.Println(file.Name())
+	}
+
+	flags := gen.CmdFlags{
+		DataFile:      filepath.Join(tmpDir, "data.json"),
+		TemplateDir:   filepath.Join(tmpDir, "templates"),
+		OutDir:        outDir,
+		QuestionsFile: filepath.Join(tmpDir, "questions.json"),
+	}
+	questionsHandler := questions.NewQuestionsHandler()
+	fmt.Printf("Creating project from %s and %s to %s\n", flags.DataFile, flags.TemplateDir, flags.OutDir)
+
+	dg := gen.NewDataGen(flags, questionsHandler)
+
+	Must(os.RemoveAll(flags.OutDir))
+	Must(os.MkdirAll(flags.OutDir, 0755))
+	Must(dg.Generate())
+	fmt.Println("done")
+
+	for _, file := range errors.MustReturn(os.ReadDir(outDir)).OrFail() {
+		fmt.Println(file.Name())
+	}
+
 }
 
 // ProgressBar wraps a github.com/cheggaaa/pb.Pool

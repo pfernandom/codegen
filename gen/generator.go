@@ -38,7 +38,6 @@ func NewDataGen(flags CmdFlags, questionsHandler questions.QuestionsHandler) *da
 }
 
 func (dg *dataGen) Validate() error {
-
 	if _, err := os.Stat(dg.TemplateDir); os.IsNotExist(err) {
 		return fmt.Errorf("template directory not found: %s", dg.TemplateDir)
 	}
@@ -63,7 +62,6 @@ func (dg *dataGen) Generate() error {
 }
 
 func (dg *dataGen) ParseToOut(s string, out_file string, d fs.FileInfo, err error) error {
-	// LOG.Info("ParseToOut", "s", s, "out_file", out_file, "d", d, "err", err)
 	Must(os.MkdirAll(filepath.Dir(out_file), 0755)).OrFail()
 
 	f := MustReturn(os.Create(out_file)).OrFailWith("create file: %w", out_file)
@@ -80,6 +78,9 @@ func (dg *dataGen) ParseToOut(s string, out_file string, d fs.FileInfo, err erro
 }
 func (dg *dataGen) Walk(s string, d fs.FileInfo, err error) error {
 	MustOrMessage(err, "walk error: %w", err)
+	if strings.Contains(s, ".git") {
+		return nil
+	}
 	if d.IsDir() {
 		return nil
 	}

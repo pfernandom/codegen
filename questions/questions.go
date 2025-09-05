@@ -3,6 +3,7 @@ package questions
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 
 	e "github.com/pfernandom/codegen/errors"
@@ -45,6 +46,10 @@ func (h *questionsHandler) AskQuestionsFromFile(file string) map[PromptKey]strin
 	e.Must(json.Unmarshal(b, &questions))
 	answers := make(map[PromptKey]string)
 
+	if len(questions) == 0 {
+		return answers
+	}
+	fmt.Println("Please answer the following questions:")
 	for key, value := range questions {
 		answers[key] = sprompt(value)
 	}

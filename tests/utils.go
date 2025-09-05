@@ -36,14 +36,6 @@ type outputTester struct {
 	out_dir string
 }
 
-func (ot *outputTester) assertFileExistsAndContains(file string, content string) {
-	ot.T.Helper()
-	assert.FileExists(ot.T, file)
-	data, err := os.ReadFile(file)
-	assert.NoError(ot.T, err)
-	assert.Contains(ot.T, string(data), content)
-}
-
 func (ot *outputTester) assertOutFileExistsAndContains(file string, content string) {
 	ot.T.Helper()
 	file = filepath.Join(ot.out_dir, file)
