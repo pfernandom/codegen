@@ -21,7 +21,7 @@ func FormatGitRepoUrl(repo string) (string, giturl.IGitURL, error) {
 
 func CloneGitRepo(repo string) (string, io.Closer, error) {
 	src, repoURL, err := FormatGitRepoUrl(repo)
-	closer := io.Closer(nil)
+	var closer io.Closer = NopCloser{}
 	if err != nil {
 		return "", closer, err
 	}

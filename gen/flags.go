@@ -31,7 +31,7 @@ func ParseFlags() (CmdFlags, io.Closer) {
 	flag.Parse()
 
 	base_dir := "."
-	closer := io.Closer(nil)
+	var closer io.Closer = NopCloser{}
 	if isArgGitRepo() {
 		is_git_repo = true
 		git_repo = flag.Arg(0)
@@ -95,4 +95,11 @@ func parseArg() string {
 		return first_arg + "/"
 	}
 	return first_arg
+}
+
+type NopCloser struct{}
+
+// Close implements the io.Closer interface for NopCloser.
+func (NopCloser) Close() error {
+	return nil // No operation, no error.
 }
